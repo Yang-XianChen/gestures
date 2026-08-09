@@ -8,7 +8,7 @@ RED='\033[0;31m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-REPO="ferstar/gestures"
+REPO="Yang-XianChen/gestures"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LOCAL_BIN="$SCRIPT_DIR/gestures"
 BIN_PATH="/usr/local/bin/gestures"
@@ -19,8 +19,41 @@ SERVICE_DROPIN="$SERVICE_DIR/gestures.service.d/50-installer.conf"
 CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 CONFIG_FILE="$CONFIG_HOME/gestures.kdl"
 
+ASSUME_YES=false
+
+usage() {
+    cat <<'EOF'
+Usage: ./install.sh [options]
+
+Interactive installer for gestures.
+
+Options:
+  -y, --yes    Accept default answers (non-interactive where possible)
+  -h, --help   Show this help
+
+Commands:
+  check        Run diagnostics and exit
+EOF
+}
+
+for arg in "$@"; do
+    case "$arg" in
+        -y|--yes) ASSUME_YES=true ;;
+        -h|--help) usage; exit 0 ;;
+    esac
+done
+
+if [ "$(id -u)" -eq 0 ]; then
+    SUDO=""
+else
+    SUDO="sudo"
+fi
+
 confirm() {
     local prompt="$1"; local default="${2:-y}"; local yn
+    if $ASSUME_YES; then
+        [ "$default" = "y" ] && return 0 || return 1
+    fi
     local hint; hint="[Y/n]"; [ "$default" = "n" ] && hint="[y/N]"
     printf "${CYAN}${prompt} ${hint} ${NC}"
     read -r yn; yn="${yn:-$default}"
@@ -33,6 +66,18 @@ warn()   { echo -e "${YELLOW}  ⚠${NC} $*"; }
 err()    { echo -e "${RED}  ✗${NC} $*"; }
 ok()     { echo -e "  ${GREEN}✓${NC} $*"; }
 skip()   { echo -e "  ${YELLOW}○${NC} $*"; }
+
+download_file() {
+    local url="$1" out="$2"
+    if command -v curl >/dev/null 2>&1; then
+        curl -fSL --retry 3 --retry-delay 2 "$url" -o "$out"
+    elif command -v wget >/dev/null 2>&1; then
+        wget -q --tries=3 "$url" -O "$out"
+    else
+        err "curl or wget is required to download the binary"
+        return 1
+    fi
+}
 
 echo -e "${BOLD}${GREEN}"
 echo "  ╔══════════════════════════════════════════╗"
@@ -246,7 +291,12 @@ if [ -n "$EXISTING" ]; then
     echo "    [3] Run diagnostics"
     echo "    [4] Exit (do nothing)"
     printf "${CYAN}  Enter 1-4:${NC} "
-    read -r ACTION; ACTION="${ACTION:-1}"
+    if $ASSUME_YES; then
+        echo "1"
+        ACTION=1
+    else
+        read -r ACTION; ACTION="${ACTION:-1}"
+    fi
     case "$ACTION" in
         1) ok "Proceeding with reinstall..." ;;
         2)
@@ -270,7 +320,7 @@ if [ -n "$EXISTING" ]; then
             ok "Service files removed"
 
             if [ -f "$BIN_PATH" ]; then
-                sudo rm -f "$BIN_PATH"
+                $SUDO rm -f "$BIN_PATH"
                 ok "Removed $BIN_PATH"
             fi
 
@@ -282,7 +332,7 @@ if [ -n "$EXISTING" ]; then
             fi
 
             [ -f "$LOCAL_BIN" ] && rm -f "$LOCAL_BIN"
-            [ -f "$SCRIPT_DIR/target" ] && rm -rf "$SCRIPT_DIR/target" 2>/dev/null || true
+            [ -d "$SCRIPT_DIR/target" ] && rm -rf "$SCRIPT_DIR/target" 2>/dev/null || true
 
             echo
             echo -e "  ${GREEN}Uninstall complete.${NC}"
@@ -343,24 +393,32 @@ if [ -z "$SRC_BIN" ]; then
     echo "    [1] Download pre-built from GitHub Releases  (fast, no Rust needed)"
     echo "    [2] Compile from source via Rust             (slow, builds latest code)"
     printf "${CYAN}  Enter 1 or 2:${NC} "
-    read -r CHOICE
-    CHOICE="${CHOICE:-1}"
+    if $ASSUME_YES; then
+        echo "1"
+        CHOICE=1
+    else
+        read -r CHOICE
+        CHOICE="${CHOICE:-1}"
+    fi
 
     case "$CHOICE" in
         1)
             # --- Download pre-built ---
             RELEASE_URL="https://github.com/$REPO/releases/latest/download/gestures-linux-${ASSET_ARCH}.tar.gz"
             TMP_DIR=$(mktemp -d)
+            trap 'rm -rf "$TMP_DIR"' EXIT
             info "Downloading $RELEASE_URL..."
-            curl -fsSL "$RELEASE_URL" -o "$TMP_DIR/gestures.tar.gz" || {
+            download_file "$RELEASE_URL" "$TMP_DIR/gestures.tar.gz" || {
                 err "Download failed. Check network or GitHub availability."
                 info "Fallback: https://github.com/$REPO/releases/latest"
                 rm -rf "$TMP_DIR"; exit 1
             }
             tar xzf "$TMP_DIR/gestures.tar.gz" -C "$TMP_DIR"
-            cp "$TMP_DIR/gestures" "$LOCAL_BIN"
-            chmod +x "$LOCAL_BIN"
-            rm -rf "$TMP_DIR"
+            if [ ! -x "$TMP_DIR/gestures" ]; then
+                err "Downloaded archive does not contain a valid gestures binary"
+                rm -rf "$TMP_DIR"; exit 1
+            fi
+            install -m755 "$TMP_DIR/gestures" "$LOCAL_BIN"
             ok "Downloaded → $LOCAL_BIN"
             SRC_BIN="$LOCAL_BIN"
             ;;
@@ -369,8 +427,8 @@ if [ -z "$SRC_BIN" ]; then
             # --- Compile from source ---
             step "2a. Install Build Dependencies"
             if confirm "Install build dependencies? (build-essential, libudev-dev, libinput-dev, libxdo-dev)"; then
-                sudo apt-get update -qq
-                sudo apt-get install -y curl build-essential pkg-config \
+                $SUDO apt-get update -qq
+                $SUDO apt-get install -y curl build-essential pkg-config \
                     libudev-dev libinput-dev libxdo-dev
                 ok "Build dependencies installed"
             else
@@ -391,8 +449,7 @@ if [ -z "$SRC_BIN" ]; then
             info "Compiling gestures (release mode)..."
             . "$HOME/.cargo/env"
             cargo build --release
-            cp "$SCRIPT_DIR/target/release/gestures" "$LOCAL_BIN"
-            chmod +x "$LOCAL_BIN"
+            install -m755 "$SCRIPT_DIR/target/release/gestures" "$LOCAL_BIN"
             ok "Compiled → $LOCAL_BIN"
             SRC_BIN="$LOCAL_BIN"
             ;;
@@ -425,7 +482,12 @@ else
     echo "    [1] Wayland"
     echo "    [2] X11"
     printf "${CYAN}  Enter 1 or 2:${NC} "
-    read -r DS; DS="${DS:-1}"
+    if $ASSUME_YES; then
+        echo "1"
+        DS=1
+    else
+        read -r DS; DS="${DS:-1}"
+    fi
     case "$DS" in 1) IS_WAYLAND=true ;; 2) IS_X11=true ;; *) IS_WAYLAND=true ;; esac
 fi
 
@@ -435,7 +497,7 @@ if $IS_WAYLAND; then
     info "Wayland runtime needs: ydotool + ydotoold daemon"
     if confirm "Install ydotool and register ydotoold as a user service?"; then
         if ! command -v ydotool &>/dev/null; then
-            sudo apt-get install -y ydotool
+            $SUDO apt-get install -y ydotool
             ok "ydotool installed"
         else
             ok "ydotool already installed: $(which ydotool)"
@@ -472,7 +534,7 @@ else
     ok "Display server: X11"
     info "X11 runtime needs: libxdo3 (for direct mouse control)"
     if confirm "Install X11 runtime dependencies?"; then
-        sudo apt-get install -y libxdo3 xdotool
+        $SUDO apt-get install -y libxdo3 xdotool
         ok "X11 runtime deps installed"
     fi
 fi
@@ -482,8 +544,7 @@ step "4. Install Binary to System"
 # ═══════════════════════════════════════════
 
 if [ "$SRC_BIN" != "$BIN_PATH" ]; then
-    sudo cp "$SRC_BIN" "$BIN_PATH"
-    sudo chmod +x "$BIN_PATH"
+    $SUDO install -m755 "$SRC_BIN" "$BIN_PATH"
     ok "Installed $BIN_PATH"
 else
     ok "Already at $BIN_PATH"
