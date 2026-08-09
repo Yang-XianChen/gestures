@@ -214,7 +214,7 @@ fn generate_config(print_only: bool, force: bool) -> Result<()> {
     println!("\nAfter editing, reload the config:");
     println!("  gestures reload");
     println!("\nView full documentation:");
-    println!("  https://github.com/ferstar/gestures/blob/dev/config.md");
+    println!("  https://github.com/ferstar/gestures/blob/main/README.md#configuration");
 
     Ok(())
 }
