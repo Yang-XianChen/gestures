@@ -20,6 +20,8 @@ CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 CONFIG_FILE="$CONFIG_HOME/gestures.kdl"
 
 ASSUME_YES=false
+DRY_RUN=false
+UNINSTALL=false
 
 usage() {
     cat <<'EOF'
@@ -29,6 +31,10 @@ Interactive installer for gestures.
 
 Options:
   -y, --yes    Accept default answers (non-interactive where possible)
+  -n, --dry-run, --simulate
+               Show what would be done without changing the system
+  -u, --uninstall
+               Uninstall gestures and exit
   -h, --help   Show this help
 
 Commands:
@@ -39,6 +45,8 @@ EOF
 for arg in "$@"; do
     case "$arg" in
         -y|--yes) ASSUME_YES=true ;;
+        -n|--dry-run|--simulate) DRY_RUN=true ;;
+        -u|--uninstall) UNINSTALL=true ;;
         -h|--help) usage; exit 0 ;;
     esac
 done
@@ -66,6 +74,14 @@ warn()   { echo -e "${YELLOW}  ⚠${NC} $*"; }
 err()    { echo -e "${RED}  ✗${NC} $*"; }
 ok()     { echo -e "  ${GREEN}✓${NC} $*"; }
 skip()   { echo -e "  ${YELLOW}○${NC} $*"; }
+
+run() {
+    if $DRY_RUN; then
+        echo -e "${YELLOW}  [DRY-RUN]${NC} $*"
+        return 0
+    fi
+    "$@"
+}
 
 download_file() {
     local url="$1" out="$2"
@@ -254,10 +270,54 @@ run_diagnostics() {
     echo
 }
 
+do_uninstall() {
+    echo
+    warn "This will remove all gestures files from your system."
+    confirm "Proceed with uninstall?" y || { skip "Cancelled"; exit 0; }
+
+    if systemctl --user is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
+        run systemctl --user stop "$SERVICE_NAME" 2>/dev/null || true
+        ok "Service stopped"
+    fi
+    if systemctl --user is-enabled --quiet "$SERVICE_NAME" 2>/dev/null; then
+        run systemctl --user disable "$SERVICE_NAME" 2>/dev/null || true
+        ok "Service disabled"
+    fi
+    run systemctl --user daemon-reload 2>/dev/null || true
+
+    run rm -f "$SERVICE_FILE"
+    run rm -rf "$SERVICE_DIR/gestures.service.d"
+    ok "Service files removed"
+
+    if [ -f "$BIN_PATH" ]; then
+        run $SUDO rm -f "$BIN_PATH"
+        ok "Removed $BIN_PATH"
+    fi
+
+    if [ -f "$CONFIG_FILE" ] && confirm "Remove config file $CONFIG_FILE?" n; then
+        run rm -f "$CONFIG_FILE"
+        ok "Config removed"
+    else
+        skip "Config kept: $CONFIG_FILE"
+    fi
+
+    [ -f "$LOCAL_BIN" ] && run rm -f "$LOCAL_BIN"
+    [ -d "$SCRIPT_DIR/target" ] && run rm -rf "$SCRIPT_DIR/target" 2>/dev/null || true
+
+    echo
+    echo -e "  ${GREEN}Uninstall complete.${NC}"
+    exit 0
+}
+
 # ── Mode: check ──
 if [ "${1:-}" = "check" ] || [ "${1:-}" = "--check" ] || [ "${1:-}" = "diagnose" ]; then
     run_diagnostics
     exit 0
+fi
+
+# ── Mode: uninstall ──
+if $UNINSTALL; then
+    do_uninstall
 fi
 
 # ── Detect existing installation ──
@@ -299,45 +359,7 @@ if [ -n "$EXISTING" ]; then
     fi
     case "$ACTION" in
         1) ok "Proceeding with reinstall..." ;;
-        2)
-            # ── UNINSTALL ──
-            echo
-            warn "This will remove all gestures files from your system."
-            confirm "Proceed with uninstall?" n || { skip "Cancelled"; exit 0; }
-
-            if systemctl --user is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
-                systemctl --user stop "$SERVICE_NAME" 2>/dev/null || true
-                ok "Service stopped"
-            fi
-            if systemctl --user is-enabled --quiet "$SERVICE_NAME" 2>/dev/null; then
-                systemctl --user disable "$SERVICE_NAME" 2>/dev/null || true
-                ok "Service disabled"
-            fi
-            systemctl --user daemon-reload 2>/dev/null || true
-
-            rm -f "$SERVICE_FILE"
-            rm -rf "$SERVICE_DIR/gestures.service.d"
-            ok "Service files removed"
-
-            if [ -f "$BIN_PATH" ]; then
-                $SUDO rm -f "$BIN_PATH"
-                ok "Removed $BIN_PATH"
-            fi
-
-            if [ -f "$CONFIG_FILE" ] && confirm "Remove config file $CONFIG_FILE?" n; then
-                rm -f "$CONFIG_FILE"
-                ok "Config removed"
-            else
-                skip "Config kept: $CONFIG_FILE"
-            fi
-
-            [ -f "$LOCAL_BIN" ] && rm -f "$LOCAL_BIN"
-            [ -d "$SCRIPT_DIR/target" ] && rm -rf "$SCRIPT_DIR/target" 2>/dev/null || true
-
-            echo
-            echo -e "  ${GREEN}Uninstall complete.${NC}"
-            exit 0
-            ;;
+        2) do_uninstall ;;
         3) run_diagnostics; echo; printf "${CYAN}  Press Enter to return to menu...${NC}"; read -r _ ;;
         4) skip "Exiting"; exit 0 ;;
         *) skip "Unknown option, exiting"; exit 1 ;;
@@ -418,9 +440,13 @@ if [ -z "$SRC_BIN" ]; then
                 err "Downloaded archive does not contain a valid gestures binary"
                 rm -rf "$TMP_DIR"; exit 1
             fi
-            install -m755 "$TMP_DIR/gestures" "$LOCAL_BIN"
-            ok "Downloaded → $LOCAL_BIN"
-            SRC_BIN="$LOCAL_BIN"
+            if $DRY_RUN; then
+                SRC_BIN="$TMP_DIR/gestures"
+            else
+                install -m755 "$TMP_DIR/gestures" "$LOCAL_BIN"
+                ok "Downloaded → $LOCAL_BIN"
+                SRC_BIN="$LOCAL_BIN"
+            fi
             ;;
 
         2)
@@ -448,17 +474,26 @@ if [ -z "$SRC_BIN" ]; then
             step "2c. Build"
             info "Compiling gestures (release mode)..."
             . "$HOME/.cargo/env"
-            cargo build --release
-            install -m755 "$SCRIPT_DIR/target/release/gestures" "$LOCAL_BIN"
-            ok "Compiled → $LOCAL_BIN"
-            SRC_BIN="$LOCAL_BIN"
+            run cargo build --release
+            if $DRY_RUN; then
+                SRC_BIN="$SCRIPT_DIR/target/release/gestures"
+                info "Would install: $SRC_BIN"
+            else
+                install -m755 "$SCRIPT_DIR/target/release/gestures" "$LOCAL_BIN"
+                ok "Compiled → $LOCAL_BIN"
+                SRC_BIN="$LOCAL_BIN"
+            fi
             ;;
 
         *)  err "Invalid choice"; exit 1 ;;
     esac
 fi
 
-info "Binary: $($SRC_BIN --version 2>/dev/null || file "$SRC_BIN")"
+if [ -x "$SRC_BIN" ]; then
+    info "Binary: $($SRC_BIN --version 2>/dev/null || file "$SRC_BIN")"
+else
+    info "Binary source: $SRC_BIN (not written in dry-run)"
+fi
 
 # ═══════════════════════════════════════════
 step "3. Runtime Dependencies"
@@ -494,20 +529,23 @@ fi
 if $IS_WAYLAND; then
     ok "Display server: Wayland"
     echo
-    info "Wayland runtime needs: ydotool + ydotoold daemon"
-    if confirm "Install ydotool and register ydotoold as a user service?"; then
-        if ! command -v ydotool &>/dev/null; then
-            $SUDO apt-get install -y ydotool
-            ok "ydotool installed"
-        else
-            ok "ydotool already installed: $(which ydotool)"
+            info "Wayland runtime needs: ydotool + ydotoold daemon"
+            if confirm "Install ydotool and register ydotoold as a user service?"; then
+                if ! command -v ydotool &>/dev/null; then
+                    run $SUDO apt-get install -y ydotool
+                    ok "ydotool installed"
+                else
+                    ok "ydotool already installed: $(which ydotool)"
         fi
         # Set up ydotoold user service
         YD_SERVICE="$SERVICE_DIR/ydotoold.service"
         if [ ! -f "$YD_SERVICE" ]; then
             YD_SOCK="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/.ydotool_socket"
             YD_OWN="$(id -u):$(id -g)"
-            cat > "$YD_SERVICE" << YDUNIT
+            if $DRY_RUN; then
+                echo -e "${YELLOW}  [DRY-RUN]${NC} write $YD_SERVICE"
+            else
+                cat > "$YD_SERVICE" << YDUNIT
 [Unit]
 Description=ydotoold - virtual input daemon for Wayland
 
@@ -518,11 +556,18 @@ ExecStart=/usr/bin/ydotoold --socket-path="${YD_SOCK}" --socket-own="${YD_OWN}"
 [Install]
 WantedBy=default.target
 YDUNIT
-            ok "Created $YD_SERVICE"
+            fi
+            if $DRY_RUN; then
+                ok "Would create $YD_SERVICE"
+            else
+                ok "Created $YD_SERVICE"
+            fi
         fi
-        systemctl --user daemon-reload
-        systemctl --user enable --now ydotoold.service 2>/dev/null || true
-        if systemctl --user is-active --quiet ydotoold.service 2>/dev/null; then
+        run systemctl --user daemon-reload
+        run systemctl --user enable --now ydotoold.service 2>/dev/null || true
+        if $DRY_RUN; then
+            ok "(dry-run) ydotoold would be running"
+        elif systemctl --user is-active --quiet ydotoold.service 2>/dev/null; then
             ok "ydotoold service running"
         else
             warn "ydotoold failed to start — check: systemctl --user status ydotoold"
@@ -534,7 +579,7 @@ else
     ok "Display server: X11"
     info "X11 runtime needs: libxdo3 (for direct mouse control)"
     if confirm "Install X11 runtime dependencies?"; then
-        $SUDO apt-get install -y libxdo3 xdotool
+        run $SUDO apt-get install -y libxdo3 xdotool
         ok "X11 runtime deps installed"
     fi
 fi
@@ -544,8 +589,12 @@ step "4. Install Binary to System"
 # ═══════════════════════════════════════════
 
 if [ "$SRC_BIN" != "$BIN_PATH" ]; then
-    $SUDO install -m755 "$SRC_BIN" "$BIN_PATH"
-    ok "Installed $BIN_PATH"
+    run $SUDO install -m755 "$SRC_BIN" "$BIN_PATH"
+    if $DRY_RUN; then
+        ok "Would install $BIN_PATH"
+    else
+        ok "Installed $BIN_PATH"
+    fi
 else
     ok "Already at $BIN_PATH"
 fi
@@ -556,10 +605,14 @@ step "5. Configuration"
 
 if [ -f "$CONFIG_FILE" ] && ! confirm "Config exists at $CONFIG_FILE. Overwrite?" n; then
     skip "Keeping existing config"
+elif $DRY_RUN; then
+    echo -e "${YELLOW}  [DRY-RUN]${NC} $BIN_PATH generate-config --force"
+    echo -e "${YELLOW}  [DRY-RUN]${NC} write $CONFIG_FILE"
+    ok "Config would be written to: $CONFIG_FILE"
 else
     "$BIN_PATH" generate-config --force 2>/dev/null || {
         warn "generate-config failed, creating minimal config"
-        mkdir -p "$CONFIG_HOME"
+        run mkdir -p "$CONFIG_HOME"
         cat > "$CONFIG_FILE" << 'KDL'
 // 3-finger drag (X11 + Wayland)
 swipe direction="any" fingers=3 mouse-up-delay=300 acceleration=20
@@ -572,10 +625,14 @@ fi
 step "6. Systemd Service"
 # ═══════════════════════════════════════════
 
-mkdir -p "$SERVICE_DIR"
+run mkdir -p "$SERVICE_DIR"
 
 if [ -f "$SERVICE_FILE" ] && ! confirm "Service file exists. Overwrite?" n; then
     skip "Keeping existing service file"
+elif $DRY_RUN; then
+    echo -e "${YELLOW}  [DRY-RUN]${NC} $BIN_PATH install-service"
+    echo -e "${YELLOW}  [DRY-RUN]${NC} write $SERVICE_FILE"
+    ok "Service file would be: $SERVICE_FILE"
 else
     "$BIN_PATH" install-service 2>/dev/null || {
         info "Writing service file manually..."
@@ -601,22 +658,30 @@ UNIT
 fi
 
 # Add drop-in for RUST_LOG + auto-restart (non-destructive)
-mkdir -p "$SERVICE_DIR/gestures.service.d"
-cat > "$SERVICE_DIR/gestures.service.d/50-installer.conf" << CONF
+run mkdir -p "$SERVICE_DIR/gestures.service.d"
+if $DRY_RUN; then
+    echo -e "${YELLOW}  [DRY-RUN]${NC} write $SERVICE_DROPIN"
+else
+    cat > "$SERVICE_DROPIN" << CONF
 [Service]
 Environment=RUST_LOG=error,gestures=info
 Restart=on-failure
 RestartSec=3s
 CONF
+fi
 
-systemctl --user daemon-reload
-systemctl --user enable --now "$SERVICE_NAME" 2>/dev/null
-sleep 1
+run systemctl --user daemon-reload
+run systemctl --user enable --now "$SERVICE_NAME" 2>/dev/null
 
-if systemctl --user is-active --quiet "$SERVICE_NAME"; then
-    ok "Service running"
+if $DRY_RUN; then
+    ok "(dry-run) service would be enabled and started"
 else
-    warn "Service not active — check: journalctl --user -u $SERVICE_NAME -n 20"
+    sleep 1
+    if systemctl --user is-active --quiet "$SERVICE_NAME"; then
+        ok "Service running"
+    else
+        warn "Service not active — check: journalctl --user -u $SERVICE_NAME -n 20"
+    fi
 fi
 
 # ═══════════════════════════════════════════
@@ -624,7 +689,11 @@ step "7. Done"
 # ═══════════════════════════════════════════
 
 echo
-echo -e "  ${GREEN}Gestures installed successfully!${NC}"
+if $DRY_RUN; then
+    echo -e "  ${YELLOW}Dry-run complete — no system changes were made.${NC}"
+else
+    echo -e "  ${GREEN}Gestures installed successfully!${NC}"
+fi
 echo
 echo -e "  ${BOLD}Quick commands:${NC}"
 echo "    status:  systemctl --user status gestures"
