@@ -1,12 +1,10 @@
 # Gestures
 
-> This fork focuses on high-performance three-finger dragging with optimizations for both X11 and Wayland.
+> High-performance three-finger dragging with optimizations for both X11 and Wayland.
 >
 > For technical details, see: https://github.com/riley-martin/gestures/discussions/6
 >
-> Pre-compiled binaries: https://github.com/ferstar/gestures/releases
->
-> Install via cargo: `cargo install --git https://github.com/ferstar/gestures.git`
+> Releases: https://github.com/ferstar/gestures/releases
 
 ## About
 A libinput-based touchpad gesture handler that executes commands based on gestures.
@@ -21,8 +19,22 @@ Unlike alternatives, it uses the libinput API directly for better performance an
 - **Gesture Types**: Swipe (8 directions + any), Pinch, Hold
 - **Advanced Features**:
   - Mouse acceleration and delay for smooth 3-finger dragging
+  - Smart finger-count recognition during drag delay (3-finger re-touch continues, others release)
+  - Keyboard-interrupt and stuck-timeout safety nets
+  - Auto-restart on crash
   - Real-time config reload via IPC
   - Graceful shutdown (SIGTERM/SIGINT)
+
+## Quick Deploy
+
+```bash
+git clone https://github.com/ferstar/gestures.git
+cd gestures
+chmod +x install.sh
+./install.sh
+```
+
+The script interactively installs runtime dependencies, downloads the pre-built binary, configures gestures, and registers the systemd service — no Rust toolchain required.
 
 ## Configuration
 See [config.md](./config.md) for detailed configuration instructions.

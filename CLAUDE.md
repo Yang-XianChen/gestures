@@ -157,6 +157,17 @@ gestures -d start      # Debug level
 journalctl --user -u gestures -f
 ```
 
+5. **Drag State Machine** (event_handler.rs):
+   - `Idle` → swipe begin with direct_mouse_gesture → `Active`
+   - `Active` → swipe end with delay > 0 → `PendingRelease`
+   - `PendingRelease` + 3-finger swipe begin → `Active` (continue drag)
+   - `PendingRelease` + non-3-finger swipe begin → `Idle` (release + new gesture)
+   - `PendingRelease` + pinch/hold begin → `Idle` (release + new gesture)
+   - `PendingRelease` + pointer event (1-finger click/motion) → `Idle` (immediate release)
+   - `PendingRelease` + timer expires → `Idle` (normal mouse_up)
+   
+   See DragState enum in event_handler.rs for state definitions.
+
 ## Important Constraints
 
 1. **X11 Environment Detection** (mouse_handler.rs:24-73):

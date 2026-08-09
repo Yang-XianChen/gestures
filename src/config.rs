@@ -8,7 +8,8 @@ use crate::gestures::Gesture;
 
 #[derive(Decode, PartialEq, Debug, Default)]
 pub struct Config {
-    // pub device: Option<String>,
+    #[knuffel(child, unwrap(argument))]
+    pub throttle_fps: Option<u32>,
     #[knuffel(children)]
     pub gestures: Vec<Gesture>,
 }

@@ -63,7 +63,8 @@ Environment=PATH=/usr/local/bin:/usr/local/sbin:/usr/bin:/bin
 Type=simple
 ExecStart={} start
 ExecReload={} reload
-Restart=no
+Restart=on-failure
+RestartSec=3s
 
 [Install]
 WantedBy=default.target
@@ -124,6 +125,10 @@ fn install_service(print_only: bool) -> Result<()> {
 fn get_default_config() -> &'static str {
     r#"// Gestures Configuration
 // See https://github.com/ferstar/gestures for full documentation
+
+// Global: throttle FPS for Wayland mouse updates (default: 144)
+// Higher = smoother but more CPU. 0 = no throttle.
+throttle-fps 144
 
 // ====================
 // 3-Finger Drag (macOS-like)

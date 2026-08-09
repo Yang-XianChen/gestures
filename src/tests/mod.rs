@@ -15,6 +15,7 @@ fn test_config_default() {
     assert_eq!(
         c,
         Config {
+            throttle_fps: None,
             // // device: None,
             gestures: vec![],
         }

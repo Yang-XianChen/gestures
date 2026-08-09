@@ -16,6 +16,9 @@ pub struct Swipe {
     pub acceleration: Option<i8>,
     #[knuffel(property)]
     pub mouse_up_delay: Option<i64>,
+    /// live=true: 方向确定/中途改变方向时立即触发 end 命令，不需要抬手
+    #[knuffel(property)]
+    pub live: Option<bool>,
 }
 
 /// Direction of swipe gestures

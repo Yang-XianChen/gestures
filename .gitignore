@@ -2,6 +2,8 @@
 /result
 /.direnv
 .idea
+/gestures
+/gestures.bak-*
 
 # Local test scripts with personal configuration
 test-build-local.sh

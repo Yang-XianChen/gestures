@@ -9,6 +9,14 @@ Configuration file is searched in order:
 ## Format
 Uses [KDL](https://kdl.dev) configuration language (since v0.5.0).
 
+## Global Settings
+
+```kdl
+throttle-fps 144
+```
+
+- `throttle-fps`: Throttle rate for Wayland mouse updates (default: 144). Higher = smoother but more CPU. Set to `0` to disable throttling entirely. This only affects Wayland mode where mouse commands are sent via ydotool.
+
 ## Swipe Gestures
 
 ### Basic Syntax

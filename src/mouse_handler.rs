@@ -15,6 +15,37 @@ fn current_uid() -> Option<u32> {
     std::fs::metadata("/proc/self").ok().map(|m| m.uid())
 }
 
+/// 执行 `ydotool click`，失败时重试并记录日志。
+/// 鼠标左键一旦按下而释放失败，会一直锁住，所以释放命令必须确认成功。
+fn run_ydotool_click(code: &str) -> bool {
+    for attempt in 1..=3 {
+        match Command::new("ydotool").args(["click", "--", code]).status() {
+            Ok(status) if status.success() => return true,
+            Ok(status) => {
+                log::warn!(
+                    "ydotool click {} failed (exit {}), attempt {}/3",
+                    code,
+                    status,
+                    attempt
+                );
+            }
+            Err(e) => {
+                log::warn!(
+                    "failed to spawn ydotool click {}: {} (attempt {}/3)",
+                    code,
+                    e,
+                    attempt
+                );
+            }
+        }
+        if attempt < 3 {
+            thread::sleep(StdDuration::from_millis(80 * attempt as u64));
+        }
+    }
+    log::error!("ydotool click {} failed after 3 attempts", code);
+    false
+}
+
 #[derive(Copy, Clone)]
 pub enum MouseCommand {
     MouseUp,
@@ -189,9 +220,9 @@ impl MouseHandler {
         if let Some(ref tx) = self.tx {
             let _ = tx.send((MouseCommand::MouseDown, button, 255));
         } else {
-            let _ = Command::new("ydotool")
-                .args(["click", "--", "0x40"])
-                .spawn();
+            if !run_ydotool_click("0x40") {
+                log::error!("mouse_down via ydotool failed, left button may not be pressed");
+            }
         }
     }
 
@@ -208,11 +239,23 @@ impl MouseHandler {
             self.guard = Some(self.timer.schedule_with_delay(
                 Duration::milliseconds(delay_ms),
                 move || {
-                    let _ = Command::new("ydotool")
-                        .args(["click", "--", "0x80"])
-                        .spawn();
+                    if !run_ydotool_click("0x80") {
+                        log::error!("delayed mouse_up via ydotool failed, button may stay down");
+                    }
                 },
             ));
+        }
+    }
+
+    /// Immediately release mouse button, cancelling any pending delayed release
+    pub fn mouse_up_immediate(&mut self, button: i32) {
+        self.cancel_timer_if_present();
+        if let Some(ref tx) = self.tx {
+            let _ = tx.send((MouseCommand::MouseUp, button, 255));
+        } else {
+            if !run_ydotool_click("0x80") {
+                log::error!("mouse_up via ydotool failed, left button may stay locked");
+            }
         }
     }
 
@@ -234,7 +277,7 @@ impl MouseHandler {
                 }
             }
         } else {
-            let _ = Command::new("ydotool")
+            let status = Command::new("ydotool")
                 .args([
                     "mousemove",
                     "-x",
@@ -242,7 +285,10 @@ impl MouseHandler {
                     "-y",
                     &y_val.to_string(),
                 ])
-                .spawn();
+                .status();
+            if let Err(e) = status {
+                log::warn!("ydotool mousemove failed: {}", e);
+            }
         }
     }
 
@@ -263,6 +309,23 @@ impl MouseHandler {
             );
             self.dropped_move_events = 0;
             self.last_drop_report = Instant::now();
+        }
+    }
+}
+
+impl Drop for MouseHandler {
+    fn drop(&mut self) {
+        // Safety net: if a delayed mouse_up hasn't fired yet (thread crash, etc.),
+        // release the mouse immediately to prevent stuck button.
+        if self.guard.is_some() {
+            log::error!("MouseHandler dropped with pending timer guard, releasing mouse now");
+            if let Some(ref tx) = self.tx {
+                let _ = tx.send((MouseCommand::MouseUp, 1, 255));
+            } else {
+                let _ = Command::new("ydotool")
+                    .args(["click", "--", "0x80"])
+                    .status();
+            }
         }
     }
 }
