@@ -539,8 +539,10 @@ if $IS_WAYLAND; then
         fi
         # Set up ydotoold user service
         YD_SERVICE="$SERVICE_DIR/ydotoold.service"
-        if [ ! -f "$YD_SERVICE" ]; then
-            YD_SOCK="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/.ydotool_socket"
+        YD_SOCK="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/.ydotool_socket"
+        if [ -S "$YD_SOCK" ] && pgrep -x ydotoold >/dev/null 2>&1; then
+            ok "ydotoold already running with socket $YD_SOCK — skipping user service"
+        elif [ ! -f "$YD_SERVICE" ]; then
             YD_OWN="$(id -u):$(id -g)"
             if $DRY_RUN; then
                 echo -e "${YELLOW}  [DRY-RUN]${NC} write $YD_SERVICE"
@@ -562,15 +564,25 @@ YDUNIT
             else
                 ok "Created $YD_SERVICE"
             fi
-        fi
-        run systemctl --user daemon-reload
-        run systemctl --user enable --now ydotoold.service 2>/dev/null || true
-        if $DRY_RUN; then
-            ok "(dry-run) ydotoold would be running"
-        elif systemctl --user is-active --quiet ydotoold.service 2>/dev/null; then
-            ok "ydotoold service running"
+            run systemctl --user daemon-reload
+            run systemctl --user enable --now ydotoold.service 2>/dev/null || true
+            if $DRY_RUN; then
+                ok "(dry-run) ydotoold would be running"
+            elif systemctl --user is-active --quiet ydotoold.service 2>/dev/null; then
+                ok "ydotoold service running"
+            else
+                warn "ydotoold failed to start — check: systemctl --user status ydotoold"
+            fi
         else
-            warn "ydotoold failed to start — check: systemctl --user status ydotoold"
+            run systemctl --user daemon-reload
+            run systemctl --user enable --now ydotoold.service 2>/dev/null || true
+            if $DRY_RUN; then
+                ok "(dry-run) ydotoold would be running"
+            elif systemctl --user is-active --quiet ydotoold.service 2>/dev/null; then
+                ok "ydotoold service running"
+            else
+                warn "ydotoold failed to start — check: systemctl --user status ydotoold"
+            fi
         fi
     else
         warn "ydotool is required for 3-finger drag on Wayland"
