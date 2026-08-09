@@ -1,5 +1,7 @@
 # Gestures
 
+**English** | [简体中文](README.zh-CN.md)
+
 > High-performance three-finger dragging with optimizations for both X11 and Wayland.
 >
 > For technical details, see: https://github.com/riley-martin/gestures/discussions/6
