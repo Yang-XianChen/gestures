@@ -117,10 +117,7 @@ install_gnome_extension() {
         return 0
     fi
 
-    if ! confirm "Install GNOME extension to disable built-in touchpad swipe gestures?"; then
-        skip "Skipping GNOME extension"
-        return 0
-    fi
+    info "GNOME Shell detected — installing helper extension $GNOME_EXT_UUID"
 
     local ext_src="$GNOME_EXT_SRC"
     local tmp_ext=""
@@ -360,10 +357,13 @@ do_uninstall() {
     [ -f "$LOCAL_BIN" ] && run rm -f "$LOCAL_BIN"
     [ -d "$SCRIPT_DIR/target" ] && run rm -rf "$SCRIPT_DIR/target" 2>/dev/null || true
 
-    if command -v gnome-extensions >/dev/null 2>&1 && confirm "Disable/remove GNOME extension $GNOME_EXT_UUID?" n; then
+    local ext_dir="${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions/$GNOME_EXT_UUID"
+    if command -v gnome-extensions >/dev/null 2>&1 && [ -d "$ext_dir" ]; then
         run gnome-extensions disable "$GNOME_EXT_UUID" 2>/dev/null || true
-        run rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions/$GNOME_EXT_UUID"
+        run rm -rf "$ext_dir"
         ok "GNOME extension removed"
+    else
+        skip "GNOME extension not installed — nothing to remove"
     fi
 
     echo
