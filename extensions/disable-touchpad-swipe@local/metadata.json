@@ -1,0 +1,7 @@
+{
+  "uuid": "disable-touchpad-swipe@local",
+  "name": "Disable Touchpad Swipe Gestures",
+  "description": "Makes GNOME Shell ignore touchpad swipe gestures (>=3 fingers) so external gesture daemons can handle them. Scrolling and tapping are unaffected.",
+  "shell-version": ["48"],
+  "version": 1
+}

@@ -18,6 +18,8 @@ SERVICE_FILE="$SERVICE_DIR/$SERVICE_NAME"
 SERVICE_DROPIN="$SERVICE_DIR/gestures.service.d/50-installer.conf"
 CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 CONFIG_FILE="$CONFIG_HOME/gestures.kdl"
+GNOME_EXT_UUID="disable-touchpad-swipe@local"
+GNOME_EXT_SRC="$SCRIPT_DIR/extensions/$GNOME_EXT_UUID"
 
 ASSUME_YES=false
 DRY_RUN=false
@@ -92,6 +94,46 @@ download_file() {
     else
         err "curl or wget is required to download the binary"
         return 1
+    fi
+}
+
+install_gnome_extension() {
+    if ! command -v gnome-shell >/dev/null 2>&1 || ! command -v gnome-extensions >/dev/null 2>&1; then
+        skip "GNOME Shell not detected — skipping GNOME extension install"
+        return 0
+    fi
+
+    if ! confirm "Install GNOME extension to disable built-in touchpad swipe gestures?"; then
+        skip "Skipping GNOME extension"
+        return 0
+    fi
+
+    local ext_src="$GNOME_EXT_SRC"
+    local tmp_ext=""
+    if [ ! -f "$ext_src/extension.js" ] || [ ! -f "$ext_src/metadata.json" ]; then
+        info "Extension not bundled locally, downloading from repository..."
+        tmp_ext=$(mktemp -d)
+        trap 'rm -rf "$tmp_ext"' EXIT
+        if ! download_file "https://raw.githubusercontent.com/$REPO/main/extensions/$GNOME_EXT_UUID/extension.js" "$tmp_ext/extension.js" ||
+           ! download_file "https://raw.githubusercontent.com/$REPO/main/extensions/$GNOME_EXT_UUID/metadata.json" "$tmp_ext/metadata.json"; then
+            err "Failed to download GNOME extension"
+            return 1
+        fi
+        ext_src="$tmp_ext"
+    fi
+
+    local ext_dir="${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions/$GNOME_EXT_UUID"
+    run mkdir -p "$ext_dir"
+    run install -m644 "$ext_src/extension.js" "$ext_dir/extension.js"
+    run install -m644 "$ext_src/metadata.json" "$ext_dir/metadata.json"
+    run gnome-extensions enable "$GNOME_EXT_UUID"
+
+    if $DRY_RUN; then
+        ok "(dry-run) GNOME extension would be installed and enabled"
+    elif gnome-extensions info "$GNOME_EXT_UUID" 2>/dev/null | grep -q 'State: ACTIVE'; then
+        ok "GNOME extension active: $GNOME_EXT_UUID"
+    else
+        warn "Extension installed but not active — log out/in or restart GNOME Shell"
     fi
 }
 
@@ -303,6 +345,12 @@ do_uninstall() {
 
     [ -f "$LOCAL_BIN" ] && run rm -f "$LOCAL_BIN"
     [ -d "$SCRIPT_DIR/target" ] && run rm -rf "$SCRIPT_DIR/target" 2>/dev/null || true
+
+    if command -v gnome-extensions >/dev/null 2>&1 && confirm "Disable/remove GNOME extension $GNOME_EXT_UUID?" n; then
+        run gnome-extensions disable "$GNOME_EXT_UUID" 2>/dev/null || true
+        run rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions/$GNOME_EXT_UUID"
+        ok "GNOME extension removed"
+    fi
 
     echo
     echo -e "  ${GREEN}Uninstall complete.${NC}"
@@ -595,6 +643,9 @@ else
         ok "X11 runtime deps installed"
     fi
 fi
+
+# ── GNOME Shell extension ──
+install_gnome_extension
 
 # ═══════════════════════════════════════════
 step "4. Install Binary to System"
