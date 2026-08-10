@@ -37,19 +37,19 @@ Unlike alternatives, it uses the libinput API directly for better performance an
 Pull `install.sh` from the repository and run it:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/Yang-XianChen/gestures/main/install.sh)
+curl -fsSL https://raw.githubusercontent.com/Yang-XianChen/gestures/main/install.sh -o /tmp/gestures-install.sh && bash /tmp/gestures-install.sh
 ```
 
 For non-interactive install (accept default answers), append `--yes`:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/Yang-XianChen/gestures/main/install.sh) --yes
+curl -fsSL https://raw.githubusercontent.com/Yang-XianChen/gestures/main/install.sh -o /tmp/gestures-install.sh && bash /tmp/gestures-install.sh --yes
 ```
 
 ### One-click Uninstall
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/Yang-XianChen/gestures/main/install.sh) --uninstall --yes
+curl -fsSL https://raw.githubusercontent.com/Yang-XianChen/gestures/main/install.sh -o /tmp/gestures-install.sh && bash /tmp/gestures-install.sh --uninstall --yes
 ```
 
 `--yes` keeps your config file; omit it to answer the prompts interactively.

@@ -10,7 +10,13 @@ NC='\033[0m'
 
 REPO="Yang-XianChen/gestures"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-LOCAL_BIN="$SCRIPT_DIR/gestures"
+if [ -d "$SCRIPT_DIR" ] && [ -w "$SCRIPT_DIR" ]; then
+    LOCAL_BIN_DIR="$SCRIPT_DIR"
+else
+    LOCAL_BIN_DIR="${TMPDIR:-/tmp}/gestures-installer-$$"
+    mkdir -p "$LOCAL_BIN_DIR"
+fi
+LOCAL_BIN="$LOCAL_BIN_DIR/gestures"
 BIN_PATH="/usr/local/bin/gestures"
 SERVICE_NAME="gestures.service"
 SERVICE_DIR="$HOME/.config/systemd/user"

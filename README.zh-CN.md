@@ -31,22 +31,22 @@
 
 ### 一键安装
 
-从仓库拉取 `install.sh` 并直接执行：
+从仓库拉取 `install.sh` 到临时目录并执行：
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/Yang-XianChen/gestures/main/install.sh)
+curl -fsSL https://raw.githubusercontent.com/Yang-XianChen/gestures/main/install.sh -o /tmp/gestures-install.sh && bash /tmp/gestures-install.sh
 ```
 
 非交互安装（接受默认选项），在末尾加 `--yes`：
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/Yang-XianChen/gestures/main/install.sh) --yes
+curl -fsSL https://raw.githubusercontent.com/Yang-XianChen/gestures/main/install.sh -o /tmp/gestures-install.sh && bash /tmp/gestures-install.sh --yes
 ```
 
 ### 一键卸载
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/Yang-XianChen/gestures/main/install.sh) --uninstall --yes
+curl -fsSL https://raw.githubusercontent.com/Yang-XianChen/gestures/main/install.sh -o /tmp/gestures-install.sh && bash /tmp/gestures-install.sh --uninstall --yes
 ```
 
 `--yes` 会保留你的配置文件；去掉它可按提示交互选择。
