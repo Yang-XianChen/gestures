@@ -32,14 +32,38 @@ Unlike alternatives, it uses the libinput API directly for better performance an
 
 ## Quick Deploy
 
+### One-click Install
+
+Pull `install.sh` from the repository and run it:
+
 ```bash
-git clone https://github.com/ferstar/gestures.git
+bash <(curl -fsSL https://raw.githubusercontent.com/Yang-XianChen/gestures/main/install.sh)
+```
+
+For non-interactive install (accept default answers), append `--yes`:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/Yang-XianChen/gestures/main/install.sh) --yes
+```
+
+### One-click Uninstall
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/Yang-XianChen/gestures/main/install.sh) --uninstall --yes
+```
+
+`--yes` keeps your config file; omit it to answer the prompts interactively.
+
+### Clone and Run
+
+```bash
+git clone https://github.com/Yang-XianChen/gestures.git
 cd gestures
 chmod +x install.sh
 ./install.sh
 ```
 
-The script interactively installs runtime dependencies, downloads the pre-built binary, configures gestures, and registers the systemd service — no Rust toolchain required.
+The script interactively installs runtime dependencies, downloads the pre-built binary, configures gestures, installs the GNOME helper extension, and registers the systemd service — no Rust toolchain required.
 
 ## Installation
 

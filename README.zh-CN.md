@@ -29,14 +29,38 @@
 
 ## 快速部署
 
+### 一键安装
+
+从仓库拉取 `install.sh` 并直接执行：
+
 ```bash
-git clone https://github.com/ferstar/gestures.git
+bash <(curl -fsSL https://raw.githubusercontent.com/Yang-XianChen/gestures/main/install.sh)
+```
+
+非交互安装（接受默认选项），在末尾加 `--yes`：
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/Yang-XianChen/gestures/main/install.sh) --yes
+```
+
+### 一键卸载
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/Yang-XianChen/gestures/main/install.sh) --uninstall --yes
+```
+
+`--yes` 会保留你的配置文件；去掉它可按提示交互选择。
+
+### 克隆后运行
+
+```bash
+git clone https://github.com/Yang-XianChen/gestures.git
 cd gestures
 chmod +x install.sh
 ./install.sh
 ```
 
-脚本会交互式地安装运行时依赖、下载预编译二进制、生成配置并注册 systemd 服务——全程不需要 Rust 工具链。
+脚本会交互式地安装运行时依赖、下载预编译二进制、生成配置、安装 GNOME 辅助扩展并注册 systemd 服务——全程不需要 Rust 工具链。
 
 ## 安装
 
