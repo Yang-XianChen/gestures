@@ -59,6 +59,14 @@ else
     SUDO="sudo"
 fi
 
+CLEANUP_DIRS=""
+cleanup() {
+    for d in $CLEANUP_DIRS; do
+        rm -rf "$d" 2>/dev/null || true
+    done
+}
+trap cleanup EXIT
+
 confirm() {
     local prompt="$1"; local default="${2:-y}"; local yn
     if $ASSUME_YES; then
@@ -113,7 +121,7 @@ install_gnome_extension() {
     if [ ! -f "$ext_src/extension.js" ] || [ ! -f "$ext_src/metadata.json" ]; then
         info "Extension not bundled locally, downloading from repository..."
         tmp_ext=$(mktemp -d)
-        trap 'rm -rf "$tmp_ext"' EXIT
+        CLEANUP_DIRS="$CLEANUP_DIRS $tmp_ext"
         if ! download_file "https://raw.githubusercontent.com/$REPO/main/extensions/$GNOME_EXT_UUID/extension.js" "$tmp_ext/extension.js" ||
            ! download_file "https://raw.githubusercontent.com/$REPO/main/extensions/$GNOME_EXT_UUID/metadata.json" "$tmp_ext/metadata.json"; then
             err "Failed to download GNOME extension"
@@ -476,7 +484,7 @@ if [ -z "$SRC_BIN" ]; then
             # --- Download pre-built ---
             RELEASE_URL="https://github.com/$REPO/releases/latest/download/gestures-linux-${ASSET_ARCH}.tar.gz"
             TMP_DIR=$(mktemp -d)
-            trap 'rm -rf "$TMP_DIR"' EXIT
+            CLEANUP_DIRS="$CLEANUP_DIRS $TMP_DIR"
             info "Downloading $RELEASE_URL..."
             download_file "$RELEASE_URL" "$TMP_DIR/gestures.tar.gz" || {
                 err "Download failed. Check network or GitHub availability."
