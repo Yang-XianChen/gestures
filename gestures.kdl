@@ -1,0 +1,65 @@
+// Gestures Configuration
+throttle-fps 144
+// See https://github.com/ferstar/gestures for full documentation
+
+// ====================
+// 3-Finger Drag (macOS-like)
+// ====================
+// Works on both X11 and Wayland
+// - X11: Uses libxdo API directly (minimal latency)
+// - Wayland: Uses ydotool (ensure ydotoold daemon is running)
+swipe direction="any" fingers=3 mouse-up-delay=500 acceleration=10
+
+// ====================
+// 4-Finger Gestures (替代 swap-finger-gestures-3-4 扩展)
+// ====================
+// GNOME Shell 对 >=3 指的触摸板滑动都会响应，因此配合一个只让 Shell
+// 忽略滑动手势的极简扩展使用；动作统一在这里完成。
+// 注意：以下规则在重新登录（disable-touchpad-swipe@local 扩展加载）之前
+// 必须保持注释状态，否则 4 指会被 Shell 和 gestures 各触发一次。
+// 工作区切换使用系统按键绑定 <Super>Page_Up / <Super>Page_Down
+// （KEY_LEFTMETA=125, KEY_PAGEUP=104, KEY_PAGEDOWN=109）。
+// 注意：系统 natural-scroll=true，GNOME 原生方向是 左滑=下一工作区，
+// 因此 direction=w（左滑）对应 PageDown，direction=e（右滑）对应 PageUp。
+// live=true：累计位移确定主方向（垂直/水平）后立即触发并锁定；中途换向需要
+// 足够反向位移才切换，轻微抖动不会误触发或打断。不需要抬手。
+swipe direction="w" fingers=4 live=true end="ydotool key 125:1 109:1 109:0 125:0"
+swipe direction="e" fingers=4 live=true end="ydotool key 125:1 104:1 104:0 125:0"
+// 四指上滑：overview 未打开时打开 overview；已在 overview 中则进入应用列表
+// （应用列表用 Super+A 模拟：KEY_LEFTMETA=125, KEY_A=30；ShowApplications 被 GNOME 禁止外部调用）
+swipe direction="n" fingers=4 live=true end="if gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell --method org.freedesktop.DBus.Properties.Get org.gnome.Shell OverviewActive | grep -q 'true'; then ydotool key 125:1 30:1 30:0 125:0; else gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell --method org.freedesktop.DBus.Properties.Set org.gnome.Shell OverviewActive '<true>'; fi"
+swipe direction="s" fingers=4 live=true end="gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell --method org.freedesktop.DBus.Properties.Set org.gnome.Shell OverviewActive '<false>'"
+
+// ====================
+// 4-Finger Workspace Switching
+// ====================
+// Uncomment and adjust for your desktop environment:
+
+// Hyprland:
+// swipe direction="w" fingers=4 end="hyprctl dispatch workspace e-1"
+// swipe direction="e" fingers=4 end="hyprctl dispatch workspace e+1"
+// swipe direction="n" fingers=4 end="hyprctl dispatch fullscreen"
+// swipe direction="s" fingers=4 end="hyprctl dispatch killactive"
+
+// i3/Sway:
+// swipe direction="w" fingers=4 end="i3-msg workspace prev"
+// swipe direction="e" fingers=4 end="i3-msg workspace next"
+
+// GNOME (requires gdbus):
+// swipe direction="n" fingers=4 end="gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell --method org.gnome.Shell.Eval global.workspace_manager.get_active_workspace().get_neighbor(Meta.MotionDirection.UP).activate(global.get_current_time())"
+
+// ====================
+// Pinch Gestures
+// ====================
+// Browser zoom:
+// pinch direction="out" fingers=2 end="xdotool key ctrl+plus"
+// pinch direction="in" fingers=2 end="xdotool key ctrl+minus"
+
+// ====================
+// Hold Gestures
+// ====================
+// Application launcher:
+// hold fingers=4 action="rofi -show drun"
+
+// Screenshot:
+// hold fingers=3 action="flameshot gui"

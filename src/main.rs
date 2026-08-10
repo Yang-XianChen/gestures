@@ -123,55 +123,7 @@ fn install_service(print_only: bool) -> Result<()> {
 
 /// Generate default configuration content
 fn get_default_config() -> &'static str {
-    r#"// Gestures Configuration
-// See https://github.com/ferstar/gestures for full documentation
-
-// Global: throttle FPS for Wayland mouse updates (default: 144)
-// Higher = smoother but more CPU. 0 = no throttle.
-throttle-fps 144
-
-// ====================
-// 3-Finger Drag (macOS-like)
-// ====================
-// Works on both X11 and Wayland
-// - X11: Uses libxdo API directly (minimal latency)
-// - Wayland: Uses ydotool (ensure ydotoold daemon is running)
-swipe direction="any" fingers=3 mouse-up-delay=500 acceleration=20
-
-// ====================
-// 4-Finger Workspace Switching
-// ====================
-// Uncomment and adjust for your desktop environment:
-
-// Hyprland:
-// swipe direction="w" fingers=4 end="hyprctl dispatch workspace e-1"
-// swipe direction="e" fingers=4 end="hyprctl dispatch workspace e+1"
-// swipe direction="n" fingers=4 end="hyprctl dispatch fullscreen"
-// swipe direction="s" fingers=4 end="hyprctl dispatch killactive"
-
-// i3/Sway:
-// swipe direction="w" fingers=4 end="i3-msg workspace prev"
-// swipe direction="e" fingers=4 end="i3-msg workspace next"
-
-// GNOME (requires gdbus):
-// swipe direction="n" fingers=4 end="gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell --method org.gnome.Shell.Eval global.workspace_manager.get_active_workspace().get_neighbor(Meta.MotionDirection.UP).activate(global.get_current_time())"
-
-// ====================
-// Pinch Gestures
-// ====================
-// Browser zoom:
-// pinch direction="out" fingers=2 end="xdotool key ctrl+plus"
-// pinch direction="in" fingers=2 end="xdotool key ctrl+minus"
-
-// ====================
-// Hold Gestures
-// ====================
-// Application launcher:
-// hold fingers=4 action="rofi -show drun"
-
-// Screenshot:
-// hold fingers=3 action="flameshot gui"
-"#
+    include_str!("../gestures.kdl")
 }
 
 /// Generate or print default configuration file
