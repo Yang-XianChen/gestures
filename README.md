@@ -171,6 +171,8 @@ gestures reload
 
 Uses [KDL](https://kdl.dev) configuration language (since v0.5.0).
 
+The default config written by `gestures generate-config` comes from [`gestures.kdl`](./gestures.kdl) in this repository — a GNOME-focused setup. When GNOME is detected, the installer also automatically installs the `disable-touchpad-swipe@local` extension so GNOME Shell's built-in touchpad swipe gestures don't conflict.
+
 ### Global Settings
 
 ```kdl
@@ -207,7 +209,7 @@ In commands, these variables are replaced with actual values:
 **Works on both X11 and Wayland:**
 
 ```kdl
-swipe direction="any" fingers=3 mouse-up-delay=500 acceleration=20
+swipe direction="any" fingers=3 mouse-up-delay=500 acceleration=10
 ```
 
 **Parameters:**
@@ -242,28 +244,39 @@ swipe direction="any" fingers=3 \
   end="ydotool click -- 0x80"
 ```
 
-#### Workspace Switching Examples
+#### GNOME 4-Finger Gestures (Default Config)
 
-**Hyprland:**
+The default config in this repository targets GNOME Shell:
+
+- Requires the `disable-touchpad-swipe@local` extension, which `install.sh` installs automatically when GNOME is detected
+- With GNOME natural-scroll enabled, a left swipe (`w`) maps to PageDown and a right swipe (`e`) maps to PageUp
+- `live=true` commits the direction as soon as it is determined, without lifting fingers; mid-gesture direction changes re-trigger the command
 
 ```kdl
-swipe direction="w" fingers=4 end="hyprctl dispatch workspace e-1"
-swipe direction="e" fingers=4 end="hyprctl dispatch workspace e+1"
-swipe direction="n" fingers=4 end="hyprctl dispatch fullscreen"
-swipe direction="s" fingers=4 end="hyprctl dispatch killactive"
+// Workspace switch: <Super>Page_Down / <Super>Page_Up
+// KEY_LEFTMETA=125, KEY_PAGEUP=104, KEY_PAGEDOWN=109
+swipe direction="w" fingers=4 live=true end="ydotool key 125:1 109:1 109:0 125:0"
+swipe direction="e" fingers=4 live=true end="ydotool key 125:1 104:1 104:0 125:0"
+
+// Four-finger up: open Overview, or open the app grid if already in Overview
+swipe direction="n" fingers=4 live=true end="if gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell --method org.freedesktop.DBus.Properties.Get org.gnome.Shell OverviewActive | grep -q 'true'; then ydotool key 125:1 30:1 30:0 125:0; else gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell --method org.freedesktop.DBus.Properties.Set org.gnome.Shell OverviewActive '<true>'; fi"
+
+// Four-finger down: close Overview
+swipe direction="s" fingers=4 live=true end="gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell --method org.freedesktop.DBus.Properties.Set org.gnome.Shell OverviewActive '<false>'"
 ```
 
-**i3/Sway:**
+**Other desktop environments** (commented out in the default config):
 
 ```kdl
-swipe direction="w" fingers=4 end="i3-msg workspace prev"
-swipe direction="e" fingers=4 end="i3-msg workspace next"
-```
+// Hyprland:
+// swipe direction="w" fingers=4 end="hyprctl dispatch workspace e-1"
+// swipe direction="e" fingers=4 end="hyprctl dispatch workspace e+1"
+// swipe direction="n" fingers=4 end="hyprctl dispatch fullscreen"
+// swipe direction="s" fingers=4 end="hyprctl dispatch killactive"
 
-**GNOME:**
-
-```kdl
-swipe direction="n" fingers=4 end="gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell --method org.gnome.Shell.Eval global.workspace_manager.get_active_workspace().get_neighbor(Meta.MotionDirection.UP).activate(global.get_current_time())"
+// i3/Sway:
+// swipe direction="w" fingers=4 end="i3-msg workspace prev"
+// swipe direction="e" fingers=4 end="i3-msg workspace next"
 ```
 
 ### Pinch Gestures
@@ -302,34 +315,18 @@ hold fingers=3 action="flameshot gui"
 
 ### Complete Example Configuration
 
-```kdl
-// 3-finger drag (X11 + Wayland)
-swipe direction="any" fingers=3 mouse-up-delay=500 acceleration=20
+The complete default configuration is maintained in [`gestures.kdl`](./gestures.kdl) — `gestures generate-config` writes exactly this file. It includes:
 
-// Workspace navigation
-swipe direction="w" fingers=4 end="hyprctl dispatch workspace e-1"
-swipe direction="e" fingers=4 end="hyprctl dispatch workspace e+1"
-
-// Application launcher
-swipe direction="n" fingers=4 end="rofi -show drun"
-
-// Close window
-swipe direction="s" fingers=4 end="hyprctl dispatch killactive"
-
-// Browser zoom
-pinch direction="in" fingers=2 end="xdotool key ctrl+minus"
-pinch direction="out" fingers=2 end="xdotool key ctrl+plus"
-
-// App launcher on hold
-hold fingers=4 action="rofi -show drun"
-```
+- 3-finger drag: `swipe direction="any" fingers=3 mouse-up-delay=500 acceleration=10`
+- GNOME 4-finger live gestures (workspace switch via `ydotool key`, Overview toggle via `gdbus`)
+- Commented examples for Hyprland, i3/Sway, pinch, and hold gestures
 
 ### Tips
 
 1. **Test commands first**: Run commands manually before adding to config
 2. **Reload config**: `gestures reload` (no restart needed)
 3. **Wayland ydotool**: Ensure `ydotoold` daemon is running
-4. **Disable DE gestures**: Prevent conflicts with built-in gestures
+4. **GNOME helper extension**: The installer installs it automatically; on other desktop environments, disable built-in gestures manually to avoid conflicts
 5. **Check logs**: Run `journalctl --user -u gestures -f` for debugging
 
 ## Performance Optimizations

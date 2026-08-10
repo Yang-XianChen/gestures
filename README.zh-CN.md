@@ -168,6 +168,8 @@ gestures reload
 
 使用 [KDL](https://kdl.dev) 配置语言（自 v0.5.0 起）。
 
+`gestures generate-config` 生成的默认配置来自仓库里的 [`gestures.kdl`](./gestures.kdl)，是一套面向 GNOME 的配置。检测到 GNOME 时，安装脚本还会自动安装 `disable-touchpad-swipe@local` 扩展，避免 GNOME Shell 自带触摸板滑动手势与之冲突。
+
 ### 全局设置
 
 ```kdl
@@ -204,7 +206,7 @@ swipe direction="<dir>" fingers=<n> [start="<cmd>"] [update="<cmd>"] [end="<cmd>
 **X11 和 Wayland 均可用：**
 
 ```kdl
-swipe direction="any" fingers=3 mouse-up-delay=500 acceleration=20
+swipe direction="any" fingers=3 mouse-up-delay=500 acceleration=10
 ```
 
 **参数说明：**
@@ -239,28 +241,39 @@ swipe direction="any" fingers=3 \
   end="ydotool click -- 0x80"
 ```
 
-#### 工作区切换示例
+#### GNOME 四指手势（默认配置）
 
-**Hyprland：**
+仓库里的默认配置针对 GNOME Shell：
+
+- 需要 `disable-touchpad-swipe@local` 扩展，安装脚本检测到 GNOME 时会自动安装
+- 系统开启 natural-scroll 时，左滑（`w`）对应 PageDown，右滑（`e`）对应 PageUp
+- `live=true`：累计位移确定主方向后立即触发并锁定，无需抬手；中途换向会重新触发命令
 
 ```kdl
-swipe direction="w" fingers=4 end="hyprctl dispatch workspace e-1"
-swipe direction="e" fingers=4 end="hyprctl dispatch workspace e+1"
-swipe direction="n" fingers=4 end="hyprctl dispatch fullscreen"
-swipe direction="s" fingers=4 end="hyprctl dispatch killactive"
+// 工作区切换：<Super>Page_Down / <Super>Page_Up
+// KEY_LEFTMETA=125, KEY_PAGEUP=104, KEY_PAGEDOWN=109
+swipe direction="w" fingers=4 live=true end="ydotool key 125:1 109:1 109:0 125:0"
+swipe direction="e" fingers=4 live=true end="ydotool key 125:1 104:1 104:0 125:0"
+
+// 四指上滑：打开 Overview；已在 Overview 中则进入应用列表
+swipe direction="n" fingers=4 live=true end="if gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell --method org.freedesktop.DBus.Properties.Get org.gnome.Shell OverviewActive | grep -q 'true'; then ydotool key 125:1 30:1 30:0 125:0; else gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell --method org.freedesktop.DBus.Properties.Set org.gnome.Shell OverviewActive '<true>'; fi"
+
+// 四指下滑：关闭 Overview
+swipe direction="s" fingers=4 live=true end="gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell --method org.freedesktop.DBus.Properties.Set org.gnome.Shell OverviewActive '<false>'"
 ```
 
-**i3/Sway：**
+**其他桌面环境**（默认配置中以注释形式保留）：
 
 ```kdl
-swipe direction="w" fingers=4 end="i3-msg workspace prev"
-swipe direction="e" fingers=4 end="i3-msg workspace next"
-```
+// Hyprland：
+// swipe direction="w" fingers=4 end="hyprctl dispatch workspace e-1"
+// swipe direction="e" fingers=4 end="hyprctl dispatch workspace e+1"
+// swipe direction="n" fingers=4 end="hyprctl dispatch fullscreen"
+// swipe direction="s" fingers=4 end="hyprctl dispatch killactive"
 
-**GNOME：**
-
-```kdl
-swipe direction="n" fingers=4 end="gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell --method org.gnome.Shell.Eval global.workspace_manager.get_active_workspace().get_neighbor(Meta.MotionDirection.UP).activate(global.get_current_time())"
+// i3/Sway：
+// swipe direction="w" fingers=4 end="i3-msg workspace prev"
+// swipe direction="e" fingers=4 end="i3-msg workspace next"
 ```
 
 ### 捏合手势
@@ -299,34 +312,18 @@ hold fingers=3 action="flameshot gui"
 
 ### 完整示例配置
 
-```kdl
-// 3 指拖拽（X11 + Wayland）
-swipe direction="any" fingers=3 mouse-up-delay=500 acceleration=20
+完整默认配置维护在 [`gestures.kdl`](./gestures.kdl)，`gestures generate-config` 生成的就是这份文件，内容包括：
 
-// 工作区导航
-swipe direction="w" fingers=4 end="hyprctl dispatch workspace e-1"
-swipe direction="e" fingers=4 end="hyprctl dispatch workspace e+1"
-
-// 应用启动器
-swipe direction="n" fingers=4 end="rofi -show drun"
-
-// 关闭窗口
-swipe direction="s" fingers=4 end="hyprctl dispatch killactive"
-
-// 浏览器缩放
-pinch direction="in" fingers=2 end="xdotool key ctrl+minus"
-pinch direction="out" fingers=2 end="xdotool key ctrl+plus"
-
-// 长按打开应用启动器
-hold fingers=4 action="rofi -show drun"
-```
+- 三指拖拽：`swipe direction="any" fingers=3 mouse-up-delay=500 acceleration=10`
+- GNOME 四指 live 手势（`ydotool key` 切换工作区、`gdbus` 控制 Overview）
+- 注释保留的 Hyprland、i3/Sway、捏合和长按示例
 
 ### 提示
 
 1. **先测试命令**：把命令手动跑一遍，确认没问题再加进配置
 2. **重载配置**：`gestures reload`（无需重启服务）
 3. **Wayland 的 ydotool**：确保 `ydotoold` 守护进程正在运行
-4. **关闭桌面环境自带手势**：避免与内置手势冲突
+4. **GNOME 辅助扩展**：安装脚本会自动安装；其他桌面环境请手动关闭自带手势，避免冲突
 5. **查看日志**：运行 `journalctl --user -u gestures -f` 排查问题
 
 ## 性能优化
